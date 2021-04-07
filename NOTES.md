@@ -76,11 +76,12 @@ usb_enable(NULL);
 ```
 
 3. Build the server example for OpenThread on the nRF52840 DK and
-   flash:
+   flash (I've moved all the OT overlay stuff into the main `prj.conf`
+   file):
 
 ```
 cd ~/code/echo_server
-west build -b nrf52840dk_nrf52840 . -- -DCONF_FILE="prj.conf overlay-ot.conf"
+west build -b nrf52840dk_nrf52840 .
 west flash
 ```
 
@@ -162,3 +163,45 @@ udp send hello-there
 
   You should see messages on both the server and client recording the
   message being received and echoed.
+
+
+# Zephyr OpenThread CoAP server + OpenThread CLI
+
+This is a lot more complicated than the earlier examples! The CoAP
+server example in the main Zephyr tree is for Ethernet, not
+OpenThread, and the CoAP server example in the Nordic nRF-Connect SDK
+uses Nordic's own CoAP API rather than the Zephyr API. So some
+bricolage is required.
+
+I'm doing this by looking at the Zephyr CoAP server example, the
+Zephyr OpenThread socket echo server example, and the [CoAP
+RFC](https://tools.ietf.org/html/rfc7252).
+
+ - I started from the Zephyr `coap_server` example.
+
+ - I removed all the CoAP resources except for one, and set this up to
+   set and return a single boolean value under the `/led` path. (This
+   was mostly mechanical, but getting the response codes right for the
+   `POST` method needed a bit of looking in the CoAP protocol
+   definition.)
+
+**STOPPED HERE**
+
+ - I copied the initialisation scheme from the echo server: this uses
+   the Zephyr network connection management API to detect when the
+   OpenThread network becomes available, and only starts the
+   application-level code at that point. It uses a couple of
+   semaphores to control this (and an application exit command added
+   into the command shell).
+
+*I believe that this should be enough to get a Zephyr shell
+application with working OpenThread networking and the basic CoAP
+server, but I'm sure there will be some bumps in the road.*
+
+
+# References
+
+ - [RFC 7252: The Constrained Application Protocol (CoAP)](https://tools.ietf.org/html/rfc7252)
+ - [RFC 6690: Constrained RESTful Environments (CoRE) Link Format](https://tools.ietf.org/html/rfc6690)
+ - [RFC 7959: Block-Wise Transfers in the Constrained Application Protocol (CoAP)](https://tools.ietf.org/html/rfc7959)
+ - [RFC 7641: Observing Resources in the Constrained Application Protocol (CoAP)](https://tools.ietf.org/html/rfc7641)
