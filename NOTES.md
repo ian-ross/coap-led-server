@@ -185,8 +185,6 @@ RFC](https://tools.ietf.org/html/rfc7252).
    `POST` method needed a bit of looking in the CoAP protocol
    definition.)
 
-**STOPPED HERE**
-
  - I copied the initialisation scheme from the echo server: this uses
    the Zephyr network connection management API to detect when the
    OpenThread network becomes available, and only starts the
@@ -194,9 +192,16 @@ RFC](https://tools.ietf.org/html/rfc7252).
    semaphores to control this (and an application exit command added
    into the command shell).
 
-*I believe that this should be enough to get a Zephyr shell
-application with working OpenThread networking and the basic CoAP
-server, but I'm sure there will be some bumps in the road.*
+*I need to write some more notes, but at this point, I was able to
+send CoAP messages from the OT CLI to modify the stored LED state on
+the CoAP server!*
+
+**Next steps:**
+
+ - Tidy up code.
+ - Split out from single big C file.
+ - Wire LED state up to real LED.
+ - Get running on dongle as well as dev kit.
 
 
 # References
