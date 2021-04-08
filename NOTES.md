@@ -205,3 +205,56 @@ server, but I'm sure there will be some bumps in the road.*
  - [RFC 6690: Constrained RESTful Environments (CoRE) Link Format](https://tools.ietf.org/html/rfc6690)
  - [RFC 7959: Block-Wise Transfers in the Constrained Application Protocol (CoAP)](https://tools.ietf.org/html/rfc7959)
  - [RFC 7641: Observing Resources in the Constrained Application Protocol (CoAP)](https://tools.ietf.org/html/rfc7641)
+
+
+# Debugging
+
+Looking at messages sent by the OT CLI...
+
+(CoAP payload marker is 0xFF.)
+
+## CoAP message for `GET led`
+
+```
+52 01 52 92   55 7f   b3 6c 65 64
+                          l  e  d
+```
+
+Header:
+
+ - 52 = [01][01][0010]
+    * CoAP Version = 1
+    * Type = 1 (non-confirmable)
+    * Token length = 2
+ - 01 = Code 0.01 (GET)
+ - 5292 = sequence number (21138)
+
+Token: 557F (for request/response correlation)
+
+Options:
+ - B3 = Option 11 (Uri-Path), length 3 => "led"
+
+
+
+## CoAP message for `POST led on`
+
+```
+42 02 5b 6a   38 8b   b3 6c 65 64   ff 6f 6e
+                          l  e  d       o  n
+```
+
+Header:
+
+ - 42 = [01][00][0010]
+    * CoAP Version = 1
+    * Type = 1 (confirmable)
+    * Token length = 2
+ - 02 = Code 0.02 (POST)
+ - 5B6A = sequence number
+
+Token: 388B (for request/response correlation)
+
+Options:
+ - B3 = Option 11 (Uri-Path), length 3 => "led"
+
+Payload: "on"
