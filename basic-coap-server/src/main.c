@@ -17,6 +17,7 @@ LOG_MODULE_REGISTER(basic_coap_server, LOG_LEVEL_DBG);
 #include <net/net_conn_mgr.h>
 
 #include "coap.h"
+#include "led.h"
 #include "endpoints.h"
 
 
@@ -96,6 +97,9 @@ static void init_app(void) {
   k_sem_init(&quit_lock, 0, UINT_MAX);
 
   LOG_INF("Basic CoAP server");
+
+  // Initialise LED GPIO.
+  init_led();
 
   // Initialise network connection callback.
   net_mgmt_init_event_callback(&mgmt_cb, event_handler, EVENT_MASK);

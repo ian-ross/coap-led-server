@@ -11,6 +11,7 @@ LOG_MODULE_DECLARE(basic_coap_server, LOG_LEVEL_DBG);
 #include <net/net_ip.h>
 
 #include "coap.h"
+#include "led.h"
 #include "utils.h"
 
 
@@ -122,14 +123,18 @@ static int led_post(struct coap_resource *res, struct coap_packet *req,
     LOG_INF("POST with no payload!");
   }
 
-  // Process the payload. If it's "on", switch the LED on. If it's
-  // "off", switch the LED off. Otherwise ignore it.
-  if (payload_len == 2 &&
-      payload[0] == 'o' && payload[1] == 'n')
-    led_state = true;
-  else if (payload_len == 3 &&
-           payload[0] == 'o' && payload[1] == 'f' && payload[2] == 'f')
-    led_state = false;
+  // Process the payload. If it's ASCII '1' or binary 1, switch the
+  // LED on. If it's ASCII '0' or binary 0, switch the LED off.
+  // Otherwise ignore it.
+  if (payload_len >= 1) {
+    if (payload[0] == '1' || payload[0] == 1) {
+      led_state = true;
+      led_on();
+    } else if (payload[0] == '0' || payload[0] == 0) {
+      led_state = false;
+      led_off();
+    }
+  }
 
   // Allocate space for the reply.
   uint8_t *data = (uint8_t *)k_malloc(MAX_COAP_MSG_LEN);
