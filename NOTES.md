@@ -192,14 +192,12 @@ RFC](https://tools.ietf.org/html/rfc7252).
    semaphores to control this (and an application exit command added
    into the command shell).
 
-*I need to write some more notes, but at this point, I was able to
-send CoAP messages from the OT CLI to modify the stored LED state on
-the CoAP server!*
+ - I've now separated out the code into individual modules that
+   hopefully make it easier to understand, and I've written fairly
+   extensive comments within the code to explain what's going on.
 
 **Next steps:**
 
- - Tidy up code.
- - Split out from single big C file.
  - Wire LED state up to real LED.
  - Get running on dongle as well as dev kit.
 
