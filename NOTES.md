@@ -177,29 +177,105 @@ I'm doing this by looking at the Zephyr CoAP server example, the
 Zephyr OpenThread socket echo server example, and the [CoAP
 RFC](https://tools.ietf.org/html/rfc7252).
 
- - I started from the Zephyr `coap_server` example.
+I started from the Zephyr `coap_server` example, removed all the CoAP
+resources except for one, and set this up to set and return a single
+boolean value under the `led` path. (This was mostly mechanical, but
+getting the response codes right for the `PUT` method needed a bit of
+looking in the CoAP protocol definition.)
 
- - I removed all the CoAP resources except for one, and set this up to
-   set and return a single boolean value under the `/led` path. (This
-   was mostly mechanical, but getting the response codes right for the
-   `POST` method needed a bit of looking in the CoAP protocol
-   definition.)
+I copied the initialisation scheme from the echo server: this uses the
+Zephyr network connection management API to detect when the OpenThread
+network becomes available, and only starts the application-level code
+at that point. It uses a couple of semaphores to control this (and an
+application exit command added into the command shell). A real
+application would need to do a bit more of this stuff, to handle cases
+where network connectivity goes away and comes back, I think.
 
- - I copied the initialisation scheme from the echo server: this uses
-   the Zephyr network connection management API to detect when the
-   OpenThread network becomes available, and only starts the
-   application-level code at that point. It uses a couple of
-   semaphores to control this (and an application exit command added
-   into the command shell).
+Once everything was working, I separated out the code into individual
+modules that hopefully make it easier to understand. I've written
+fairly extensive comments within the code to explain what's going on.
 
- - I've now separated out the code into individual modules that
-   hopefully make it easier to understand, and I've written fairly
-   extensive comments within the code to explain what's going on.
+I then wired the LED state up to a real LED, just copying some of the
+GPIO setup for LED control from the Zephyr `basic/blinky` example.
 
-**Next steps:**
+At this point, I could flash the OpenThread CLI to an nRF52840 dongle,
+connect to the dongle with `tio`, join the same network as the
+development kit and send CoAP commands to the LED controller code on
+the dev kit:
 
- - Wire LED state up to real LED.
- - Get running on dongle as well as dev kit.
+```
+> channel 26
+> panid 0xabcd
+> networkname ot_zephyr
+> masterkey 00112233445566778899aabbccddeeff
+> ifconfig up
+> thread start
+> coap start
+> coap get fe80:0:0:0:8821:d9c0:f5e2:fae5 led
+> coap put fe80:0:0:0:8821:d9c0:f5e2:fae5 led con 1
+> coap put fe80:0:0:0:8821:d9c0:f5e2:fae5 led con 0
+```
+
+
+# Python GUI controller
+
+Next, I wrote a Python application to control the LED from my PC. To
+do this I used the PyGTK GUI framework. I drew up a simple GUI using
+the Glade GUI builder, and wired that up in some Python code.
+
+At this point, things got a little bit complicated, because I wanted
+to use the [`aiocoap` Python CoAP
+library](https://aiocoap.readthedocs.io/en/latest/index.html), which
+is an asynchronous I/O library. The idea here is to "make space" for
+future development, where you won't want to be doing synchronous
+network calls inside a GUI application, and where you also want to
+minimise the messing around with multi-threading you'd otherwise have
+to do.
+
+Unfortunately, that does mean you need to confront some low-level
+event management issues, because the Python `asyncio` asynchronous I/O
+facility uses an event loop setup that's different from the one that
+the Gtk GUI library normally uses.
+
+After a bit of research, I ended up using the [`asyncio_glib`
+library](https://github.com/jhenstridge/asyncio-glib). To make this
+work, you do the usual setup for PyGtk, plus a little wrinkle to make
+`asyncio` use the GLib event loop that Gtk normally uses:
+
+```
+import gi
+
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk, GObject, GLib
+
+import asyncio
+import asyncio_glib
+asyncio.set_event_loop_policy(asyncio_glib.GLibEventLoopPolicy())
+```
+
+Once that's done, you can use Python's `async`/`await` as normal and
+event management will be compatible with GLib and Gtk.
+
+There is then one additional difficulty, which is that you want to be
+able to call `async` functions from within Gtk callbacks. To do this,
+you need to get hold of the event loop that's running, keep hold of it
+inand do things
+like this:
+
+```
+asyncio.run_coroutine_threadsafe(self.setState(True), asyncio.get_event_loop())
+```
+
+Not totally obvious... (There's also something weird about getting out
+of the event loop. I'm just quitting from the application using
+`sys.exit` instead of cleanly closing off the event loop, so that
+needs a little more investigation.)
+
+With all this in place, you can flash the OpenThread NCP image to a
+dongle, set up `wpantund` on your PC, and point the Python GUI code at
+the IPv6 address of the development kit. Then you can click buttons to
+trigger CoAP requests to the development kit and turn the LED on and
+off!
 
 
 # References
@@ -239,11 +315,11 @@ Options:
 
 
 
-## CoAP message for `POST led on`
+## CoAP message for `PUT led 1`
 
 ```
-42 02 5b 6a   38 8b   b3 6c 65 64   ff 6f 6e
-                          l  e  d       o  n
+42 03 e7 b1   e9 f5   b3 6c 65 64 ff 31
+                          l  e  d
 ```
 
 Header:
@@ -252,12 +328,12 @@ Header:
     * CoAP Version = 1
     * Type = 1 (confirmable)
     * Token length = 2
- - 02 = Code 0.02 (POST)
- - 5B6A = sequence number
+ - 03 = Code 0.03 (PUT)
+ - E7B1 = sequence number
 
-Token: 388B (for request/response correlation)
+Token: E9F5 (for request/response correlation)
 
 Options:
  - B3 = Option 11 (Uri-Path), length 3 => "led"
 
-Payload: "on"
+Payload: "1"

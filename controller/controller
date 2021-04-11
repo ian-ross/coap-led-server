@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+import sys
+from aiocoap import *
+import gi
+
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk, GObject, GLib
+
+import asyncio
+import asyncio_glib
+asyncio.set_event_loop_policy(asyncio_glib.GLibEventLoopPolicy())
+
+
+class CoAPClient:
+    def __init__(self, ipaddr):
+        self.uri = 'coap://{}/led'.format(ipaddr)
+        self.context = None
+
+    async def create_context(self):
+        self.context = await Context.create_client_context()
+
+    async def get_state(self):
+        if self.context is None:
+            await self.create_context()
+
+        request = Message(code=GET, uri=self.uri)
+        response = await self.context.request(request).response
+
+        if len(response.payload) > 0:
+            if response.payload[0] == ord('1') or response.payload[0] == 1:
+                return "ON"
+            else:
+                return "OFF"
+        else:
+            return "---"
+
+    async def set_state(self, on_off):
+        if self.context is None:
+            await self.create_context()
+
+        payload = b'1' if on_off else b'0'
+        request = Message(code=PUT, uri=self.uri, payload=payload)
+        await self.context.request(request).response
+
+
+class Handler:
+    def __init__(self, builder, coap):
+        self.builder = builder
+        self.coap = coap
+        self.state_label = builder.get_object("state-label")
+        self.get_state = builder.get_object("get-state")
+        self.led_on = builder.get_object("led-on")
+        self.led_off = builder.get_object("led-off")
+        self.status_bar = builder.get_object("status-bar")
+
+    def onDestroy(self, *args):
+        # Hmmm... Gtk.main_quit() doesn't work here. Event loop
+        # weirdness...
+        sys.exit(0)
+
+    def onGetStatePressed(self, *args):
+        asyncio.run_coroutine_threadsafe(self.getState(),
+                                         asyncio.get_event_loop())
+
+    def onLedOnPressed(self, *args):
+        asyncio.run_coroutine_threadsafe(self.setState(True),
+                                         asyncio.get_event_loop())
+
+    def onLedOffPressed(self, *args):
+        asyncio.run_coroutine_threadsafe(self.setState(False),
+                                         asyncio.get_event_loop())
+
+    async def getState(self):
+        self.setStatus("Retrieving state...")
+        self.state_label.set_text("---")
+        self.get_state.set_sensitive(False)
+        try:
+            new_state = await self.coap.get_state()
+            self.state_label.set_text(new_state)
+            self.clearStatus()
+        except Exception as e:
+            print(e)
+            self.state_label.set_text('---')
+            self.setStatus('ERROR: ' + str(e))
+        self.get_state.set_sensitive(True)
+
+    async def setState(self, new_state):
+        self.setStatus("Setting state...")
+        self.led_on.set_sensitive(False)
+        self.led_off.set_sensitive(False)
+        try:
+            await self.coap.set_state(new_state)
+            self.clearStatus()
+        except Exception as e:
+            print(e)
+            self.state_label.set_text('---')
+            self.setStatus('ERROR: ' + str(e))
+        self.led_on.set_sensitive(True)
+        self.led_off.set_sensitive(True)
+
+    def setStatus(self, message):
+        self.status_bar.remove_all(0)
+        self.status_bar.push(0, message)
+
+    def clearStatus(self):
+        self.status_bar.remove_all(0)
+
+
+async def main(ipaddr):
+    builder = Gtk.Builder()
+    builder.add_from_file("controller.glade")
+
+    coap = CoAPClient(ipaddr)
+
+    loop = asyncio.get_event_loop()
+    handler = Handler(builder, coap, loop)
+    builder.connect_signals(handler)
+
+    win = builder.get_object("top-level")
+    win.show_all()
+
+    await handler.getState()
+    await asyncio.Event().wait()
+
+
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print('Usage: controller <ip-address>')
+        sys.exit(1)
+    ipaddr = sys.argv[1]
+    if ipaddr != '[':
+        ipaddr = '[' + ipaddr + ']'
+    asyncio.run(main(ipaddr))

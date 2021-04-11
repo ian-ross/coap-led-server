@@ -75,13 +75,10 @@ static int led_get(struct coap_resource *res, struct coap_packet *req,
   if (r < 0) goto end;
 
   // Construct the reply payload.
-  uint8_t payload[40];
-  r = snprintk((char *)payload, sizeof(payload), "T:%u C:%u MID:%u LED:%s\n",
-               type, code, id, led_state ? "ON" : "OFF");
-  if (r < 0) goto end;
+  uint8_t payload = led_state ? '1' : '0';
 
   // Append the payload.
-  r = coap_packet_append_payload(&resp, (uint8_t *)payload, strlen(payload));
+  r = coap_packet_append_payload(&resp, &payload, 1);
   if (r < 0) goto end;
 
   // Send the reply: note that this is a function we're providing in
@@ -101,10 +98,10 @@ end:
 }
 
 
-// Endpoint handler for "POST led" CoAP requests.
+// Endpoint handler for "PUT led" CoAP requests.
 
-static int led_post(struct coap_resource *res, struct coap_packet *req,
-                    struct sockaddr *addr, socklen_t addr_len) {
+static int led_put(struct coap_resource *res, struct coap_packet *req,
+                   struct sockaddr *addr, socklen_t addr_len) {
   // The only one of these that's used for the request processing is
   // "type" (confirmable or non-confirmable). The others are retrieved
   // here just for debugging output. (The "code" is "POST" and "id" is
@@ -112,15 +109,15 @@ static int led_post(struct coap_resource *res, struct coap_packet *req,
   uint8_t code = coap_header_get_code(req);
   uint8_t type = coap_header_get_type(req);
   uint16_t id = coap_header_get_id(req);
-  LOG_INF("led_post  type: %u code %u id %u", type, code, id);
+  LOG_INF("led_put  type: %u code %u id %u", type, code, id);
 
-  // Retrieve the POST payload.
+  // Retrieve the PUT payload.
   uint16_t payload_len;
   const uint8_t *payload = coap_packet_get_payload(req, &payload_len);
   if (payload) {
-    hexdump("POST Payload", payload, payload_len);
+    hexdump("PUT Payload", payload, payload_len);
   } else {
-    LOG_INF("POST with no payload!");
+    LOG_INF("PUT with no payload!");
   }
 
   // Process the payload. If it's ASCII '1' or binary 1, switch the
@@ -169,13 +166,10 @@ static int led_post(struct coap_resource *res, struct coap_packet *req,
   if (r < 0) goto end;
 
   // Construct the reply payload.
-  uint8_t rpayload[40];
-  r = snprintk((char *)rpayload, sizeof(rpayload), "T:%u C:%u MID:%u LED:%s\n",
-               type, code, id, led_state ? "ON" : "OFF");
-  if (r < 0) goto end;
+  uint8_t rpayload = led_state ? '1' : '0';
 
   // Append the payload.
-  r = coap_packet_append_payload(&resp, (uint8_t *)rpayload, strlen(rpayload));
+  r = coap_packet_append_payload(&resp, &rpayload, 1);
   if (r < 0) goto end;
 
   // Send the reply.
@@ -200,10 +194,10 @@ struct coap_resource coap_resources[] = {
   { .get = well_known_core_get,
     .path = COAP_WELL_KNOWN_CORE_PATH, },
 
-  // Our LED resource: we have GET and POST endpoints, and specify the
+  // Our LED resource: we have GET and PUT endpoints, and specify the
   // URI path to the resource.
   { .get = led_get,
-    .post = led_post,
+    .put = led_put,
     .path = led_path },
 
   // End marker.
